@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quant Harbor · 机器交易台</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div id="login" class="login-screen">
+      <form id="login-form" class="login-card">
+        <div class="mark">QH</div>
+        <p class="eyebrow">你的量化小助手</p>
+        <h1>Quant Harbor</h1>
+        <p class="muted">把账户、策略和风险放在一个清楚好用的地方。</p>
+        <label>管理令牌<input id="token" type="password" autocomplete="current-password" required /></label>
+        <button class="primary wide" type="submit">进入控制台</button>
+        <p class="hint">本地开发默认令牌：local-dev-token</p>
+      </form>
+    </div>
+
+    <div id="shell" class="shell hidden">
+      <aside>
+        <div class="brand"><span class="mark small">QH</span><div><strong>Quant Harbor</strong><small>我的量化空间</small></div></div>
+        <nav>
+          <button data-page="dashboard" class="active"><span class="nav-icon">⌂</span><span>概览</span></button>
+          <button data-page="accounts"><span class="nav-icon">♡</span><span>账户</span></button>
+          <button data-page="strategies"><span class="nav-icon">✦</span><span>策略</span></button>
+          <button data-page="library"><span class="nav-icon">▦</span><span>策略库</span></button>
+          <button data-page="orders"><span class="nav-icon">≋</span><span>记录</span></button>
+        </nav>
+        <div class="side-status"><span id="health-dot"></span><div><strong>服务在线</strong><small id="live-state">实盘已锁定</small></div></div>
+        <button id="logout" class="ghost">退出登录</button>
+      </aside>
+
+      <main>
+        <header><div><p class="eyebrow">今天也要稳稳地来</p><h2 id="page-title">交易总览</h2></div><button id="refresh" class="icon-button" aria-label="刷新数据">↻</button></header>
+
+        <section id="dashboard" class="page active">
+          <div class="welcome-card">
+            <div><span class="soft-pill">模拟优先 · 实盘锁定</span><h3>先看懂，再行动。</h3><p>账户密钥会加密保存。每个策略都可以先回测、再模拟，确认后才进入真实交易。</p></div>
+            <div class="welcome-orbit"><span></span><span></span><b>QH</b></div>
+          </div>
+          <div class="stats">
+            <article class="mint"><span class="stat-icon">♡</span><small>交易账户</small><strong id="stat-accounts">0</strong><span>已安全接入</span></article>
+            <article class="lilac"><span class="stat-icon">✦</span><small>我的策略</small><strong id="stat-strategies">0</strong><span>已保存规则</span></article>
+            <article class="peach"><span class="stat-icon">▶</span><small>正在运行</small><strong id="stat-running">0</strong><span>持续观察中</span></article>
+            <article class="sky"><span class="stat-icon">≋</span><small>交易记录</small><strong id="stat-orders">0</strong><span>模拟与真实</span></article>
+          </div>
+          <div class="grid visual-grid">
+            <article class="panel allocation-panel">
+              <div class="panel-head"><div><p class="eyebrow">资金快照</p><h3>模拟策略概览</h3></div><strong id="paper-total" class="panel-total">¥0</strong></div>
+              <div id="allocation-list" class="allocation-list"><div class="gentle-empty">创建模拟策略后，这里会显示资金变化。</div></div>
+            </article>
+            <article class="panel pulse-panel">
+              <div class="panel-head"><div><p class="eyebrow">运行状态</p><h3>策略活跃度</h3></div></div>
+              <div class="ring-wrap"><div id="running-ring" class="running-ring"><div><strong id="running-percent">0%</strong><span>运行中</span></div></div><div class="ring-copy"><b id="running-copy">还没有策略</b><p>从模拟盘开始，会更从容。</p></div></div>
+            </article>
+          </div>
+          <article class="panel flow-panel"><div class="panel-head"><div><p class="eyebrow">量化路线</p><h3>从想法到交易</h3></div></div><div class="flow-track"><div><span>1</span><b>想法</b><small>提出假设</small></div><i>→</i><div><span>2</span><b>规则</b><small>写清条件</small></div><i>→</i><div><span>3</span><b>回测</b><small>看历史表现</small></div><i>→</i><div><span>4</span><b>模拟</b><small>跟随实时行情</small></div><i>→</i><div><span>5</span><b>小额上线</b><small>限制风险</small></div><i>→</i><div><span>6</span><b>监控</b><small>持续复盘</small></div></div></article>
+          <article class="panel example-panel"><div class="example-copy"><p class="eyebrow">示例 · 双均线</p><h3>趋势变强时买入，变弱时离场</h3><p>20 小时均线上穿 50 小时均线时买入；下穿时卖出。每次使用小部分资金，并设置止损。</p><div class="legend"><span><i class="fast"></i>SMA 20</span><span><i class="slow"></i>SMA 50</span></div></div><svg viewBox="0 0 620 230" role="img" aria-label="双均线策略示意图"><defs><linearGradient id="softArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f72" stop-opacity=".24"/><stop offset="1" stop-color="#ff8f72" stop-opacity="0"/></linearGradient></defs><path class="chart-grid" d="M20 45H600M20 100H600M20 155H600M20 210H600"/><path class="area" d="M20 188C70 176 96 178 132 160S196 176 236 137 302 123 340 112 404 139 447 88 526 74 600 43V215H20Z"/><path class="slow-line" d="M20 174C90 168 124 165 184 157S276 144 337 132 431 118 500 92 562 69 600 62"/><path class="fast-line" d="M20 188C70 176 96 178 132 160S196 176 236 137 302 123 340 112 404 139 447 88 526 74 600 43"/><circle class="buy-dot" cx="236" cy="137" r="7"/><text x="221" y="119">买入</text><circle class="sell-dot" cx="398" cy="131" r="7"/><text x="382" y="157">卖出</text></svg></article>
+        </section>
+
+        <section id="accounts" class="page">
+          <div class="grid form-grid">
+            <article class="panel"><div class="panel-head"><div><p class="eyebrow">NEW CONNECTION</p><h3>添加交易账户</h3></div></div>
+              <form id="account-form" class="stack">
+                <label>账户名称<input name="name" placeholder="例如：Binance 测试账户" required /></label>
+                <div class="row"><label>交易所<select name="exchange_id"><option value="binance">Binance</option><option value="okx">OKX</option><option value="bybit">Bybit</option><option value="kraken">Kraken</option></select></label><label>环境<select name="sandbox"><option value="true">测试网</option><option value="false">实盘</option></select></label></div>
+                <label>API Key<input name="api_key" type="password" required /></label>
+                <label>API Secret<input name="api_secret" type="password" required /></label>
+                <label>Passphrase（OKX 等需要）<input name="passphrase" type="password" /></label>
+                <p class="form-note">建议关闭提现权限，并设置交易所 IP 白名单。</p>
+                <button class="primary" type="submit">加密保存账户</button>
+              </form>
+            </article>
+            <article class="panel"><div class="panel-head"><div><p class="eyebrow">CONNECTED</p><h3>已连接账户</h3></div></div><div id="account-list" class="card-list empty">暂无账户</div></article>
+          </div>
+        </section>
+
+        <section id="strategies" class="page">
+          <div class="grid form-grid wide-left">
+            <article class="panel strategy-builder"><div class="panel-head"><div><p class="eyebrow">可视化策略向导</p><h3>四步创建一个策略</h3></div><span class="soft-pill">不用写代码</span></div>
+              <form id="strategy-form" class="stack">
+                <div class="form-section"><div class="section-title"><span>1</span><div><b>选择市场</b><small>告诉程序在哪里、交易什么</small></div></div><div class="row"><label>策略名称<input name="name" placeholder="例如：BTC 稳健趋势" required /></label><label>先在哪里运行<select name="mode"><option value="paper">模拟盘（推荐）</option><option value="sandbox">交易所测试网</option><option value="live">实盘</option></select></label></div><div class="row three"><label>交易所<select name="exchange_id"><option value="binance">Binance</option><option value="okx">OKX</option><option value="bybit">Bybit</option><option value="kraken">Kraken</option></select></label><label>交易对<input name="symbol" value="BTC/USDT" required /></label><label>判断周期<select name="timeframe"><option value="15m">15 分钟</option><option value="1h" selected>1 小时</option><option value="4h">4 小时</option><option value="1d">1 天</option></select></label></div><label>交易账户<select name="exchange_account_id"><option value="">模拟盘无需账户</option></select></label></div>
+
+                <div class="form-section"><div class="section-title"><span>2</span><div><b>选择策略模板</b><small>程序会自动生成买卖条件</small></div></div><label>我想使用<select name="template" id="strategy-template"><option value="sma_cross">SMA 双均线趋势（适合入门）</option><option value="ema_cross">EMA 双均线趋势（反应更快）</option><option value="rsi_reversal">RSI 超买超卖（震荡行情）</option><option value="price_ma">价格与均线突破</option></select></label><div id="template-params" class="template-params"></div><div class="rule-preview"><div><span class="preview-icon buy-preview">↗</span><p><small>买入条件</small><b id="entry-preview">SMA 20 上穿 SMA 50</b></p></div><div><span class="preview-icon sell-preview">↘</span><p><small>卖出条件</small><b id="exit-preview">SMA 20 下穿 SMA 50</b></p></div></div></div>
+
+                <div class="form-section"><div class="section-title"><span>3</span><div><b>分配资金和控制风险</b><small>先决定这个策略能使用多少钱</small></div></div><div class="row three"><label>资金分配方式<select name="allocation_mode" id="allocation-mode"><option value="fixed_once">只在开始时按比例分配</option><option value="dynamic_target">每次开仓前动态校准比例</option></select></label><label>分配给这个策略<input name="allocation_pct" type="number" value="10" min="0.1" max="100" step="0.1" required /><em>占组合总资金的百分比</em></label><label id="rebalance-band-field">允许偏离<input name="rebalance_band_pct" type="number" value="5" min="0" max="50" step="0.5" /><em>偏离目标超过这个比例才调整</em></label></div><div id="allocation-explanation" class="allocation-explanation"><span>一次分配</span><p>总资金 10,000、分配 10%，策略开始时得到 1,000。以后盈利或亏损都留在这个策略里，不再强制恢复成 10%。</p></div><div class="row three"><label>每次最多投入<input name="order_quote" type="number" value="100" min="1" step="0.01" required /><em>不能超过分配资金</em></label><label>模拟组合总资金<input name="initial_cash" type="number" value="10000" min="1" required /></label><label>检查间隔<input name="poll_seconds" type="number" value="60" min="10" required /><em>秒</em></label></div><div class="row three"><label>最大亏损<input name="stop_loss_pct" type="number" value="3" min="0.1" step="0.1" /><em>% 后止损</em></label><label>目标盈利<input name="take_profit_pct" type="number" value="6" min="0.1" step="0.1" /><em>% 后止盈</em></label><label>手续费<input name="fee_bps" type="number" value="10" min="0" step="0.1" /><em>10 bps = 0.1%</em></label></div></div>
+
+                <div class="form-section final-section"><div class="section-title"><span>4</span><div><b>确认并保存</b><small>保存后不会自动开始交易</small></div></div><div id="strategy-sentence" class="strategy-sentence">程序将在 Binance 观察 BTC/USDT 的 1 小时行情，SMA 20 上穿 SMA 50 时买入，下穿时卖出。</div><details class="advanced"><summary>高级模式：查看或修改程序规则</summary><label class="check-row"><input id="advanced-mode" type="checkbox" />我要手动编辑 JSON 规则</label><textarea name="rule" id="rule-editor" rows="16" spellcheck="false" readonly></textarea><p class="form-note">支持 SMA、EMA、RSI、价格字段，以及上穿、下穿和大小比较。</p></details><div class="button-row"><button class="primary large-button" type="submit">保存并创建策略</button><button id="save-to-library" class="secondary large-button" type="button">只保存到我的策略库</button></div></div>
+              </form>
+            </article>
+            <article class="panel strategy-sidebar"><div class="panel-head"><div><p class="eyebrow">我的自动化</p><h3>策略列表</h3></div></div><div class="tip-card"><b>推荐顺序</b><p>保存策略 → 历史回测 → 模拟运行 → 检查记录 → 小额实盘</p></div><div id="strategy-list" class="card-list empty">暂无策略</div></article>
+          </div>
+        </section>
+
+        <section id="library" class="page">
+          <div class="library-hero"><div><span class="soft-pill">CLASSIC + YOUR OWN</span><h3>从经典策略开始，也收藏自己的想法</h3><p>先读懂每个模板的买卖条件，再一键放入策略向导。你写好的规则也会永久保存在“我的策略”分类。</p></div><div class="library-books"><i></i><i></i><i></i></div></div>
+          <div class="library-toolbar"><div><button class="filter-chip active" data-library-filter="全部">全部</button><button class="filter-chip" data-library-filter="趋势">趋势</button><button class="filter-chip" data-library-filter="震荡">震荡</button><button class="filter-chip" data-library-filter="突破">突破</button><button class="filter-chip" data-library-filter="组合">组合</button><button class="filter-chip" data-library-filter="我的策略">我的策略</button></div><span id="library-count">0 个模板</span></div>
+          <div id="library-list" class="library-grid"><div class="gentle-empty">正在准备策略模板…</div></div>
+        </section>
+
+        <section id="orders" class="page"><article class="panel"><div class="panel-head"><div><p class="eyebrow">EXECUTION LOG</p><h3>最近订单</h3></div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>策略</th><th>模式</th><th>交易对</th><th>方向</th><th>数量</th><th>价格</th><th>原因</th></tr></thead><tbody id="order-list"><tr><td colspan="8" class="empty-cell">暂无订单</td></tr></tbody></table></div></article></section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <dialog id="result-dialog"><div class="dialog-head"><div><p class="eyebrow">历史表现</p><h3>回测结果</h3></div><button id="close-dialog" class="icon-button" aria-label="关闭">×</button></div><div id="result-content"></div></dialog>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
