@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import get_db, init_db
 from .engine import engine
-from .exchange import ExchangeService
+from .exchange import ExchangeService, compact_ohlcv
 from .models import ExchangeAccount, OrderRecord, Strategy, StrategyTemplate
 from .schemas import (
     AccountCreate,
@@ -98,6 +98,39 @@ async def overview(db: Db) -> dict[str, Any]:
         or 0,
         "orders": db.scalar(select(func.count()).select_from(OrderRecord)) or 0,
     }
+
+
+@app.get("/api/market", dependencies=[Depends(require_admin)])
+async def market_snapshot(
+    exchange_id: str = Query(default="binance"),
+    symbol: str = Query(default="BTC/USDT", pattern=r"^[A-Z0-9]+/[A-Z0-9]+$"),
+    timeframe: str = Query(default="1h", pattern=r"^[1-9][0-9]*[mhdwM]$"),
+    limit: int = Query(default=240, ge=60, le=500),
+) -> dict[str, Any]:
+    try:
+        candles = await ExchangeService.fetch_ohlcv(
+            exchange_id, symbol, timeframe, limit=limit
+        )
+        if not candles:
+            raise ValueError("交易所没有返回 K 线")
+        first_close = float(candles[0][4])
+        last_close = float(candles[-1][4])
+        return {
+            "exchange_id": exchange_id,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "last_price": last_close,
+            "period_change_pct": round(
+                (last_close / first_close - 1) * 100 if first_close else 0, 4
+            ),
+            "period_high": max(float(row[2]) for row in candles),
+            "period_low": min(float(row[3]) for row in candles),
+            "period_volume": sum(float(row[5]) for row in candles),
+            "candle_count": len(candles),
+            "candles": compact_ohlcv(candles, max_points=limit),
+        }
+    except Exception as exc:
+        raise HTTPException(400, f"行情加载失败: {exc}") from exc
 
 
 @app.get("/api/accounts", response_model=list[AccountOut], dependencies=[Depends(require_admin)])
@@ -269,6 +302,21 @@ async def run_backtest(
         result["data_end"] = datetime.fromtimestamp(
             candles[-1][0] / 1_000, tz=timezone.utc
         ).date().isoformat()
+        result["exchange_id"] = strategy.exchange_id
+        result["symbol"] = strategy.symbol
+        result["timeframe"] = strategy.timeframe
+        result["price_candles"] = compact_ohlcv(candles)
+        candles_by_timestamp = {int(row[0]): row for row in candles}
+        for trade in result["trades"]:
+            row = candles_by_timestamp.get(int(trade["timestamp"]))
+            if row:
+                trade["candle"] = {
+                    "open": float(row[1]),
+                    "high": float(row[2]),
+                    "low": float(row[3]),
+                    "close": float(row[4]),
+                    "volume": float(row[5]),
+                }
         return result
     except Exception as exc:
         raise HTTPException(400, f"回测失败: {exc}") from exc

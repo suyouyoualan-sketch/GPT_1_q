@@ -24,6 +24,7 @@
         <div class="brand"><span class="mark small">QH</span><div><strong>Quant Harbor</strong><small>我的量化空间</small></div></div>
         <nav>
           <button data-page="dashboard" class="active"><span class="nav-icon">⌂</span><span>概览</span></button>
+          <button data-page="market"><span class="nav-icon">⌁</span><span>行情</span></button>
           <button data-page="accounts"><span class="nav-icon">♡</span><span>账户</span></button>
           <button data-page="strategies"><span class="nav-icon">✦</span><span>策略</span></button>
           <button data-page="library"><span class="nav-icon">▦</span><span>策略库</span></button>
@@ -59,6 +60,29 @@
           </div>
           <article class="panel flow-panel"><div class="panel-head"><div><p class="eyebrow">量化路线</p><h3>从想法到交易</h3></div></div><div class="flow-track"><div><span>1</span><b>想法</b><small>提出假设</small></div><i>→</i><div><span>2</span><b>规则</b><small>写清条件</small></div><i>→</i><div><span>3</span><b>回测</b><small>看历史表现</small></div><i>→</i><div><span>4</span><b>模拟</b><small>跟随实时行情</small></div><i>→</i><div><span>5</span><b>小额上线</b><small>限制风险</small></div><i>→</i><div><span>6</span><b>监控</b><small>持续复盘</small></div></div></article>
           <article class="panel example-panel"><div class="example-copy"><p class="eyebrow">示例 · 双均线</p><h3>趋势变强时买入，变弱时离场</h3><p>20 小时均线上穿 50 小时均线时买入；下穿时卖出。每次使用小部分资金，并设置止损。</p><div class="legend"><span><i class="fast"></i>SMA 20</span><span><i class="slow"></i>SMA 50</span></div></div><svg viewBox="0 0 620 230" role="img" aria-label="双均线策略示意图"><defs><linearGradient id="softArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f72" stop-opacity=".24"/><stop offset="1" stop-color="#ff8f72" stop-opacity="0"/></linearGradient></defs><path class="chart-grid" d="M20 45H600M20 100H600M20 155H600M20 210H600"/><path class="area" d="M20 188C70 176 96 178 132 160S196 176 236 137 302 123 340 112 404 139 447 88 526 74 600 43V215H20Z"/><path class="slow-line" d="M20 174C90 168 124 165 184 157S276 144 337 132 431 118 500 92 562 69 600 62"/><path class="fast-line" d="M20 188C70 176 96 178 132 160S196 176 236 137 302 123 340 112 404 139 447 88 526 74 600 43"/><circle class="buy-dot" cx="236" cy="137" r="7"/><text x="221" y="119">买入</text><circle class="sell-dot" cx="398" cy="131" r="7"/><text x="382" y="157">卖出</text></svg></article>
+        </section>
+
+        <section id="market" class="page">
+          <div class="market-hero">
+            <div><span class="soft-pill">PUBLIC MARKET DATA</span><h3>先看市场，再做决定</h3><p>直接读取交易所公开 K 线。蜡烛表示开盘、最高、最低和收盘价，下方柱形表示成交量。</p></div>
+            <div class="market-wave"><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <article class="panel market-panel">
+            <form id="market-form" class="market-toolbar-form">
+              <label>交易所<select name="exchange_id"><option value="binance">Binance</option><option value="okx">OKX</option><option value="bybit">Bybit</option><option value="kraken">Kraken</option></select></label>
+              <label>交易对<input name="symbol" value="BTC/USDT" list="market-symbols" autocomplete="off" required /><datalist id="market-symbols"><option value="BTC/USDT"></option><option value="ETH/USDT"></option><option value="SOL/USDT"></option><option value="BNB/USDT"></option><option value="XRP/USDT"></option></datalist></label>
+              <label>周期<select name="timeframe"><option value="5m">5 分钟</option><option value="15m">15 分钟</option><option value="1h" selected>1 小时</option><option value="4h">4 小时</option><option value="1d">1 天</option></select></label>
+              <label>显示范围<select name="limit"><option value="120">120 根 K 线</option><option value="240" selected>240 根 K 线</option><option value="500">500 根 K 线</option></select></label>
+              <button class="primary" type="submit">查看行情</button>
+            </form>
+            <div class="market-quick"><span>常用：</span><button data-market-symbol="BTC/USDT">BTC/USDT</button><button data-market-symbol="ETH/USDT">ETH/USDT</button><button data-market-symbol="SOL/USDT">SOL/USDT</button></div>
+            <div id="market-summary" class="market-summary hidden">
+              <div class="market-price"><small id="market-pair">BTC/USDT</small><strong id="market-last">—</strong><span id="market-change">—</span></div>
+              <div><small>区间最高</small><b id="market-high">—</b></div><div><small>区间最低</small><b id="market-low">—</b></div><div><small>区间成交量</small><b id="market-volume">—</b></div>
+            </div>
+            <div id="market-chart" class="market-chart-shell"><div class="gentle-empty">选择交易对后点击“查看行情”。</div></div>
+          </article>
+          <article class="panel market-table-panel"><div class="panel-head"><div><p class="eyebrow">RECENT CANDLES</p><h3>最近 K 线</h3></div><span class="form-note">时间按你的设备时区显示</span></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>开盘</th><th>最高</th><th>最低</th><th>收盘</th><th>成交量</th><th>涨跌</th></tr></thead><tbody id="market-candle-list"><tr><td colspan="7" class="empty-cell">尚未加载行情</td></tr></tbody></table></div></article>
         </section>
 
         <section id="accounts" class="page">

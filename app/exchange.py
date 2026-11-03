@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 import ccxt.async_support as ccxt
@@ -5,6 +6,30 @@ import ccxt.async_support as ccxt
 from .models import ExchangeAccount
 from .schemas import SUPPORTED_EXCHANGES
 from .security import decrypt_secret
+
+
+def compact_ohlcv(
+    candles: list[list[float]], max_points: int = 240
+) -> list[dict[str, float | int]]:
+    """Aggregate OHLCV rows for charts while preserving the full visible range."""
+    if not candles:
+        return []
+    chunk_size = max(1, math.ceil(len(candles) / max_points))
+    result: list[dict[str, float | int]] = []
+    for start in range(0, len(candles), chunk_size):
+        chunk = candles[start : start + chunk_size]
+        result.append(
+            {
+                "timestamp": int(chunk[0][0]),
+                "end_timestamp": int(chunk[-1][0]),
+                "open": float(chunk[0][1]),
+                "high": max(float(row[2]) for row in chunk),
+                "low": min(float(row[3]) for row in chunk),
+                "close": float(chunk[-1][4]),
+                "volume": sum(float(row[5]) for row in chunk),
+            }
+        )
+    return result
 
 
 class ExchangeService:

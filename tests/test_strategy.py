@@ -41,6 +41,11 @@ def test_backtest_executes_round_trip_and_fees() -> None:
         fee_bps=10,
     )
     assert [trade["side"] for trade in result["trades"]] == ["buy", "sell"]
+    assert [trade["action"] for trade in result["trades"]] == ["open", "close"]
+    assert [trade["decision"] for trade in result["trades"]] == [
+        "买入开仓",
+        "策略卖出平仓",
+    ]
     assert result["closed_trades"] == 1
     assert result["final_equity"] < 1_000
     assert result["open_position"] == 0
@@ -98,4 +103,5 @@ def test_stop_loss_closes_position() -> None:
     )
     assert result["trades"][-1]["side"] == "sell"
     assert result["trades"][-1]["reason"] == "stop_loss"
+    assert result["trades"][-1]["decision"] == "止损平仓"
 

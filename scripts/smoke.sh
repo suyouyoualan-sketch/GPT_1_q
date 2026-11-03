@@ -37,6 +37,7 @@ if [[ "$ready" != "true" ]]; then
 fi
 
 curl -fsS http://127.0.0.1:8765/ | grep -q "Quant Harbor"
+curl -fsS http://127.0.0.1:8765/ | grep -q "市场行情"
 curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://127.0.0.1:8765/api/overview >"$smoke_dir/overview.json"
 curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" \

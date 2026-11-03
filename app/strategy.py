@@ -196,6 +196,8 @@ class BacktestTrade:
     price: float
     amount: float
     reason: str
+    action: str
+    decision: str
 
 
 def backtest(
@@ -238,13 +240,38 @@ def backtest(
                 cash -= budget
                 position = amount
                 entry_price = price
-                trades.append(BacktestTrade(timestamp, "buy", price, amount, reason))
+                trades.append(
+                    BacktestTrade(
+                        timestamp,
+                        "buy",
+                        price,
+                        amount,
+                        reason,
+                        "open",
+                        "买入开仓",
+                    )
+                )
         elif signal == "sell" and position > 0:
             amount = position
             cash += amount * price * (1 - fee_rate)
             position = 0.0
             entry_price = None
-            trades.append(BacktestTrade(timestamp, "sell", price, amount, reason))
+            decisions = {
+                "rule": "策略卖出平仓",
+                "stop_loss": "止损平仓",
+                "take_profit": "止盈平仓",
+            }
+            trades.append(
+                BacktestTrade(
+                    timestamp,
+                    "sell",
+                    price,
+                    amount,
+                    reason,
+                    "close",
+                    decisions.get(reason, "卖出平仓"),
+                )
+            )
 
         equity = cash + position * price
         peak = max(peak, equity)
