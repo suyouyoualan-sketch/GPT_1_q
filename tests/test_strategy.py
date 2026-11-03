@@ -1,6 +1,6 @@
 import pytest
 
-from app.strategy import StrategyError, backtest, strategy_signal
+from app.strategy import StrategyError, _compute_series, backtest, strategy_signal
 
 
 def candles(prices: list[float]) -> list[list[float]]:
@@ -54,6 +54,37 @@ def test_invalid_indicator_is_rejected() -> None:
     rule["entry"]["left"] = {"indicator": "magic", "period": 2}
     with pytest.raises(StrategyError, match="不支持的指标"):
         strategy_signal(candles([98, 99, 101]), rule)
+
+
+def test_alpha_factor_values() -> None:
+    rows = candles([100, 102, 105])
+    rows[0][5], rows[1][5], rows[2][5] = 10, 10, 30
+
+    momentum = _compute_series(rows, {"indicator": "momentum", "period": 2})
+    volatility = _compute_series(rows, {"indicator": "volatility", "period": 2})
+    zscore = _compute_series(rows, {"indicator": "zscore", "period": 2})
+    volume_ratio = _compute_series(rows, {"indicator": "volume_ratio", "period": 2})
+
+    assert momentum[-1] == pytest.approx(5)
+    assert volatility[-1] == pytest.approx(0.470588, rel=1e-5)
+    assert zscore[-1] == pytest.approx(1)
+    assert volume_ratio[-1] == pytest.approx(1.5)
+
+
+def test_zscore_alpha_can_trigger_a_buy_signal() -> None:
+    rule = {
+        "entry": {
+            "left": {"indicator": "zscore", "period": 3},
+            "op": "<",
+            "right": {"value": -1},
+        },
+        "exit": {
+            "left": {"indicator": "zscore", "period": 3},
+            "op": ">",
+            "right": {"value": 0},
+        },
+    }
+    assert strategy_signal(candles([100, 95, 90]), rule) == "buy"
 
 
 def test_stop_loss_closes_position() -> None:

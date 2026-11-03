@@ -55,5 +55,6 @@ fi
 grep -q '"ok":true' "$smoke_dir/health.json"
 grep -q '"accounts":0' "$smoke_dir/overview.json"
 grep -q '经典双均线' "$smoke_dir/library.json"
+grep -q '动量 Alpha' "$smoke_dir/library.json"
 grep -q '烟雾测试策略' "$smoke_dir/custom-template.json"
 echo "HTTP smoke test passed"

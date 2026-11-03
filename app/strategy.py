@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import json
+import math
 from typing import Any
 
 
@@ -6,7 +8,7 @@ class StrategyError(ValueError):
     pass
 
 
-def _series(candles: list[list[float]], operand: dict[str, Any]) -> list[float | None]:
+def _compute_series(candles: list[list[float]], operand: dict[str, Any]) -> list[float | None]:
     count = len(candles)
     if "value" in operand:
         return [float(operand["value"])] * count
@@ -22,6 +24,7 @@ def _series(candles: list[list[float]], operand: dict[str, Any]) -> list[float |
     if period < 2:
         raise StrategyError("指标 period 必须至少为 2")
     closes = [float(row[4]) for row in candles]
+    volumes = [float(row[5]) for row in candles]
 
     if indicator == "sma":
         values: list[float | None] = [None] * count
@@ -63,16 +66,71 @@ def _series(candles: list[list[float]], operand: dict[str, Any]) -> list[float |
             )
         return values
 
+    if indicator == "momentum":
+        values = [None] * count
+        for i in range(period, count):
+            previous = closes[i - period]
+            values[i] = (closes[i] / previous - 1) * 100 if previous else 0.0
+        return values
+
+    if indicator == "volatility":
+        values = [None] * count
+        returns = [
+            (closes[i] / closes[i - 1] - 1) * 100 if closes[i - 1] else 0.0
+            for i in range(1, count)
+        ]
+        for i in range(period, count):
+            window = returns[i - period : i]
+            mean = sum(window) / len(window)
+            values[i] = math.sqrt(
+                sum((value - mean) ** 2 for value in window) / len(window)
+            )
+        return values
+
+    if indicator == "zscore":
+        values = [None] * count
+        for i in range(period - 1, count):
+            window = closes[i - period + 1 : i + 1]
+            mean = sum(window) / period
+            deviation = math.sqrt(
+                sum((value - mean) ** 2 for value in window) / period
+            )
+            values[i] = (closes[i] - mean) / deviation if deviation else 0.0
+        return values
+
+    if indicator == "volume_ratio":
+        values = [None] * count
+        for i in range(period - 1, count):
+            average = sum(volumes[i - period + 1 : i + 1]) / period
+            values[i] = volumes[i] / average if average else 0.0
+        return values
+
     raise StrategyError(f"不支持的指标: {indicator}")
 
 
+def _series(
+    candles: list[list[float]],
+    operand: dict[str, Any],
+    cache: dict[str, list[float | None]] | None = None,
+) -> list[float | None]:
+    if cache is None:
+        return _compute_series(candles, operand)
+    key = json.dumps(operand, sort_keys=True, separators=(",", ":"))
+    if key not in cache:
+        cache[key] = _compute_series(candles, operand)
+    return cache[key]
+
+
 def _condition(
-    candles: list[list[float]], condition: dict[str, Any], index: int
+    candles: list[list[float]],
+    condition: dict[str, Any],
+    index: int,
+    cache: dict[str, list[float | None]] | None = None,
 ) -> bool:
     if not {"left", "op", "right"}.issubset(condition):
         raise StrategyError("每个条件都需要 left、op 和 right")
-    left = _series(candles, condition["left"])
-    right = _series(candles, condition["right"])
+    left = _series(candles, condition["left"], cache)
+    right = _series(candles, condition["right"], cache)
     current_left, current_right = left[index], right[index]
     if current_left is None or current_right is None:
         return False
@@ -94,29 +152,39 @@ def _condition(
     raise StrategyError(f"不支持的比较操作: {op}")
 
 
-def evaluate_rule(candles: list[list[float]], rule: dict[str, Any], index: int) -> bool:
+def evaluate_rule(
+    candles: list[list[float]],
+    rule: dict[str, Any],
+    index: int,
+    cache: dict[str, list[float | None]] | None = None,
+) -> bool:
     if "all" in rule:
         items = rule["all"]
         if not isinstance(items, list) or not items:
             raise StrategyError("all 必须是非空条件数组")
-        return all(evaluate_rule(candles, item, index) for item in items)
+        return all(evaluate_rule(candles, item, index, cache) for item in items)
     if "any" in rule:
         items = rule["any"]
         if not isinstance(items, list) or not items:
             raise StrategyError("any 必须是非空条件数组")
-        return any(evaluate_rule(candles, item, index) for item in items)
-    return _condition(candles, rule, index)
+        return any(evaluate_rule(candles, item, index, cache) for item in items)
+    return _condition(candles, rule, index, cache)
 
 
-def strategy_signal(candles: list[list[float]], config: dict[str, Any], index: int = -1) -> str:
+def strategy_signal(
+    candles: list[list[float]],
+    config: dict[str, Any],
+    index: int = -1,
+    cache: dict[str, list[float | None]] | None = None,
+) -> str:
     if len(candles) < 3:
         raise StrategyError("K 线数量不足")
     index = index if index >= 0 else len(candles) - 1
     if "entry" not in config or "exit" not in config:
         raise StrategyError("策略需要 entry 和 exit 规则")
-    if evaluate_rule(candles, config["entry"], index):
+    if evaluate_rule(candles, config["entry"], index, cache):
         return "buy"
-    if evaluate_rule(candles, config["exit"], index):
+    if evaluate_rule(candles, config["exit"], index, cache):
         return "sell"
     return "hold"
 
@@ -150,11 +218,12 @@ def backtest(
     peak = initial_cash
     max_drawdown = 0.0
     first_price = float(candles[0][4])
+    series_cache: dict[str, list[float | None]] = {}
 
     for i in range(1, len(candles)):
         timestamp, price = int(candles[i][0]), float(candles[i][4])
         reason = "rule"
-        signal = strategy_signal(candles, config, i)
+        signal = strategy_signal(candles, config, i, series_cache)
         if position > 0 and entry_price:
             if stop_loss_pct and price <= entry_price * (1 - stop_loss_pct / 100):
                 signal, reason = "sell", "stop_loss"

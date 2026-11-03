@@ -76,6 +76,112 @@ BUILTIN_TEMPLATES = [
             ]},
         },
     },
+    {
+        "slug": "alpha-momentum-20",
+        "name": "动量 Alpha",
+        "description": "衡量最近一段时间的涨跌幅，趋势足够强时进入，动量转负时离场。适合用来认识最直观的 Alpha 因子。",
+        "category": "Alpha因子",
+        "entry_summary": "20 周期动量高于 3%",
+        "exit_summary": "20 周期动量低于 0%",
+        "preset": {
+            "template": "alpha_momentum",
+            "momentum_period": 20,
+            "momentum_entry": 3,
+            "momentum_exit": 0,
+        },
+        "rule": {
+            "entry": {
+                "left": {"indicator": "momentum", "period": 20},
+                "op": ">",
+                "right": {"value": 3},
+            },
+            "exit": {
+                "left": {"indicator": "momentum", "period": 20},
+                "op": "<",
+                "right": {"value": 0},
+            },
+        },
+    },
+    {
+        "slug": "alpha-zscore-20",
+        "name": "Z-score 均值回归 Alpha",
+        "description": "把价格偏离近期均值的程度标准化。价格明显偏低时进入，回到均值附近时离场，适合震荡市场。",
+        "category": "Alpha因子",
+        "entry_summary": "价格 Z-score 低于 -2",
+        "exit_summary": "价格 Z-score 高于 0",
+        "preset": {
+            "template": "alpha_zscore",
+            "zscore_period": 20,
+            "zscore_entry": -2,
+            "zscore_exit": 0,
+        },
+        "rule": {
+            "entry": {
+                "left": {"indicator": "zscore", "period": 20},
+                "op": "<",
+                "right": {"value": -2},
+            },
+            "exit": {
+                "left": {"indicator": "zscore", "period": 20},
+                "op": ">",
+                "right": {"value": 0},
+            },
+        },
+    },
+    {
+        "slug": "alpha-multi-factor",
+        "name": "量价低波动 Alpha",
+        "description": "同时检查上涨动量、成交量放大和波动率上限。条件更严格，用来演示如何把多个因子组合成一个信号。",
+        "category": "Alpha因子",
+        "entry_summary": "动量 > 3%、量比 > 1.5、波动率 < 2%",
+        "exit_summary": "动量 < 0% 或波动率 > 4%",
+        "preset": {
+            "template": "alpha_multi",
+            "momentum_period": 20,
+            "momentum_entry": 3,
+            "momentum_exit": 0,
+            "volume_period": 20,
+            "volume_ratio_entry": 1.5,
+            "volatility_period": 20,
+            "volatility_max": 2,
+            "volatility_exit": 4,
+        },
+        "rule": {
+            "entry": {
+                "all": [
+                    {
+                        "left": {"indicator": "momentum", "period": 20},
+                        "op": ">",
+                        "right": {"value": 3},
+                    },
+                    {
+                        "left": {"indicator": "volume_ratio", "period": 20},
+                        "op": ">",
+                        "right": {"value": 1.5},
+                    },
+                    {
+                        "left": {"indicator": "volatility", "period": 20},
+                        "op": "<",
+                        "right": {"value": 2},
+                    },
+                ]
+            },
+            "exit": {
+                "any": [
+                    {
+                        "left": {"indicator": "momentum", "period": 20},
+                        "op": "<",
+                        "right": {"value": 0},
+                    },
+                    {
+                        "left": {"indicator": "volatility", "period": 20},
+                        "op": ">",
+                        "right": {"value": 4},
+                    },
+                ]
+            },
+        },
+    },
 ]
 
 

@@ -72,7 +72,15 @@ async def meta() -> dict[str, Any]:
         "live_trading_enabled": settings.allow_live_trading,
         "default_rule": DEFAULT_RULE,
         "dsl": {
-            "indicators": ["sma", "ema", "rsi"],
+            "indicators": [
+                "sma",
+                "ema",
+                "rsi",
+                "momentum",
+                "volatility",
+                "zscore",
+                "volume_ratio",
+            ],
             "fields": ["open", "high", "low", "close", "volume"],
             "operators": [">", "<", ">=", "<=", "crosses_above", "crosses_below"],
         },
