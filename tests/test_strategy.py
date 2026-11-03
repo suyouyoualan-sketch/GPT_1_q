@@ -44,6 +44,9 @@ def test_backtest_executes_round_trip_and_fees() -> None:
     assert result["closed_trades"] == 1
     assert result["final_equity"] < 1_000
     assert result["open_position"] == 0
+    assert "benchmark_return_pct" in result
+    assert "excess_return_pct" in result
+    assert all("benchmark_equity" in point for point in result["equity_curve"])
 
 
 def test_invalid_indicator_is_rejected() -> None:

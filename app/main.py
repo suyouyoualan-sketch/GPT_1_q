@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -211,15 +212,40 @@ async def run_backtest(
     strategy_id: int,
     db: Db,
     limit: int = Query(default=500, ge=100, le=1_500),
+    start: date | None = Query(default=None),
+    end: date | None = Query(default=None),
 ) -> dict[str, Any]:
     strategy = db.get(Strategy, strategy_id)
     if not strategy:
         raise HTTPException(404, "策略不存在")
+    if (start is None) != (end is None):
+        raise HTTPException(422, "开始日期和结束日期必须同时填写")
+    if start and end and start > end:
+        raise HTTPException(422, "开始日期不能晚于结束日期")
     try:
-        candles = await ExchangeService.fetch_ohlcv(
-            strategy.exchange_id, strategy.symbol, strategy.timeframe, limit=limit
-        )
-        return backtest(
+        if start and end:
+            start_ms = int(
+                datetime.combine(start, time.min, tzinfo=timezone.utc).timestamp()
+                * 1_000
+            )
+            end_ms = int(
+                datetime.combine(
+                    end + timedelta(days=1), time.min, tzinfo=timezone.utc
+                ).timestamp()
+                * 1_000
+            )
+            candles = await ExchangeService.fetch_ohlcv_range(
+                strategy.exchange_id,
+                strategy.symbol,
+                strategy.timeframe,
+                start_ms,
+                end_ms,
+            )
+        else:
+            candles = await ExchangeService.fetch_ohlcv(
+                strategy.exchange_id, strategy.symbol, strategy.timeframe, limit=limit
+            )
+        result = backtest(
             candles,
             strategy.rule,
             initial_cash=strategy.initial_cash,
@@ -228,6 +254,14 @@ async def run_backtest(
             stop_loss_pct=strategy.stop_loss_pct,
             take_profit_pct=strategy.take_profit_pct,
         )
+        result["candle_count"] = len(candles)
+        result["data_start"] = datetime.fromtimestamp(
+            candles[0][0] / 1_000, tz=timezone.utc
+        ).date().isoformat()
+        result["data_end"] = datetime.fromtimestamp(
+            candles[-1][0] / 1_000, tz=timezone.utc
+        ).date().isoformat()
+        return result
     except Exception as exc:
         raise HTTPException(400, f"回测失败: {exc}") from exc
 

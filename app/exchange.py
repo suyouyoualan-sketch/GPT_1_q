@@ -73,6 +73,53 @@ class ExchangeService:
             await exchange.close()
 
     @classmethod
+    async def fetch_ohlcv_range(
+        cls,
+        exchange_id: str,
+        symbol: str,
+        timeframe: str,
+        start_ms: int,
+        end_ms: int,
+        max_candles: int = 10_000,
+    ) -> list[list[float]]:
+        exchange = cls.build(exchange_id, sandbox=False)
+        try:
+            timeframe_ms = int(exchange.parse_timeframe(timeframe) * 1_000)
+            expected = (end_ms - start_ms) // timeframe_ms
+            if expected > max_candles:
+                raise ValueError(
+                    f"所选区间约有 {expected:,} 根 K 线，当前上限为 {max_candles:,} 根；"
+                    "请缩短日期范围或使用更大的周期"
+                )
+            candles: list[list[float]] = []
+            cursor = start_ms
+            while cursor < end_ms and len(candles) < max_candles:
+                batch_limit = min(1_000, max_candles - len(candles))
+                batch = await exchange.fetch_ohlcv(
+                    symbol,
+                    timeframe=timeframe,
+                    since=cursor,
+                    limit=batch_limit,
+                )
+                if not batch:
+                    break
+                for row in batch:
+                    timestamp = int(row[0])
+                    if timestamp >= end_ms:
+                        break
+                    if timestamp >= start_ms and (
+                        not candles or timestamp > int(candles[-1][0])
+                    ):
+                        candles.append([float(value) for value in row])
+                next_cursor = int(batch[-1][0]) + timeframe_ms
+                if next_cursor <= cursor or int(batch[-1][0]) >= end_ms:
+                    break
+                cursor = next_cursor
+            return candles
+        finally:
+            await exchange.close()
+
+    @classmethod
     async def market_order(
         cls,
         account: ExchangeAccount,

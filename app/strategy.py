@@ -149,6 +149,7 @@ def backtest(
     equity_curve: list[dict[str, float | int]] = []
     peak = initial_cash
     max_drawdown = 0.0
+    first_price = float(candles[0][4])
 
     for i in range(1, len(candles)):
         timestamp, price = int(candles[i][0]), float(candles[i][4])
@@ -180,10 +181,18 @@ def backtest(
         peak = max(peak, equity)
         max_drawdown = max(max_drawdown, (peak - equity) / peak if peak else 0)
         if i % max(1, len(candles) // 120) == 0 or i == len(candles) - 1:
-            equity_curve.append({"timestamp": timestamp, "equity": round(equity, 4)})
+            equity_curve.append(
+                {
+                    "timestamp": timestamp,
+                    "equity": round(equity, 4),
+                    "benchmark_equity": round(initial_cash * price / first_price, 4),
+                }
+            )
 
     final_price = float(candles[-1][4])
     final_equity = cash + position * final_price
+    return_pct = (final_equity / initial_cash - 1) * 100
+    benchmark_return_pct = (final_price / first_price - 1) * 100
     sells = [trade for trade in trades if trade.side == "sell"]
     wins = 0
     buy_price = None
@@ -197,7 +206,9 @@ def backtest(
     return {
         "initial_cash": initial_cash,
         "final_equity": round(final_equity, 4),
-        "return_pct": round((final_equity / initial_cash - 1) * 100, 4),
+        "return_pct": round(return_pct, 4),
+        "benchmark_return_pct": round(benchmark_return_pct, 4),
+        "excess_return_pct": round(return_pct - benchmark_return_pct, 4),
         "max_drawdown_pct": round(max_drawdown * 100, 4),
         "closed_trades": len(sells),
         "win_rate_pct": round(wins / len(sells) * 100, 2) if sells else 0.0,
