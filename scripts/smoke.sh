@@ -38,10 +38,13 @@ fi
 
 curl -fsS http://127.0.0.1:8765/ | grep -q "Quant Harbor"
 curl -fsS http://127.0.0.1:8765/ | grep -q "市场行情"
+curl -fsS http://127.0.0.1:8765/ | grep -q "机器学习实验室"
 curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://127.0.0.1:8765/api/overview >"$smoke_dir/overview.json"
 curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://127.0.0.1:8765/api/library >"$smoke_dir/library.json"
+curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://127.0.0.1:8765/api/ml/experiments >"$smoke_dir/ml-experiments.json"
 curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"烟雾测试策略","description":"临时验证","category":"我的策略","entry_summary":"价格高于 100","exit_summary":"价格低于 90","rule":{"entry":{"left":{"field":"close"},"op":">","right":{"value":100}},"exit":{"left":{"field":"close"},"op":"<","right":{"value":90}}}}' \
@@ -57,5 +60,6 @@ grep -q '"ok":true' "$smoke_dir/health.json"
 grep -q '"accounts":0' "$smoke_dir/overview.json"
 grep -q '经典双均线' "$smoke_dir/library.json"
 grep -q '动量 Alpha' "$smoke_dir/library.json"
+grep -q '^\[\]$' "$smoke_dir/ml-experiments.json"
 grep -q '烟雾测试策略' "$smoke_dir/custom-template.json"
 echo "HTTP smoke test passed"

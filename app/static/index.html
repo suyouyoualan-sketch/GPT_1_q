@@ -27,6 +27,7 @@
           <button data-page="market"><span class="nav-icon">⌁</span><span>行情</span></button>
           <button data-page="accounts"><span class="nav-icon">♡</span><span>账户</span></button>
           <button data-page="strategies"><span class="nav-icon">✦</span><span>策略</span></button>
+          <button data-page="ml"><span class="nav-icon">◎</span><span>机器学习</span></button>
           <button data-page="library"><span class="nav-icon">▦</span><span>策略库</span></button>
           <button data-page="orders"><span class="nav-icon">≋</span><span>记录</span></button>
         </nav>
@@ -102,6 +103,26 @@
           </div>
         </section>
 
+        <section id="ml" class="page">
+          <div class="ml-hero">
+            <div><span class="soft-pill">MACHINE LEARNING LAB</span><h3>让模型从历史行情中学习</h3><p>选择市场和训练区间，系统会生成因子、按时间滚动验证，并用从未参与训练的数据检查策略。第一版使用 LightGBM，神经网络接口已经预留。</p></div>
+            <div class="ml-orbit"><span>数据</span><i>→</i><span>训练</span><i>→</i><span>验证</span></div>
+          </div>
+          <div class="grid ml-grid">
+            <article class="panel ml-builder"><div class="panel-head"><div><p class="eyebrow">NEW EXPERIMENT</p><h3>创建训练实验</h3></div><span class="soft-pill">离线训练</span></div>
+              <form id="ml-form" class="stack">
+                <div class="form-section"><div class="section-title"><span>1</span><div><b>选择训练数据</b><small>第一版固定使用 1 小时 K 线</small></div></div><label>实验名称<input name="name" value="BTC 未来12小时模型" required /></label><div class="row three"><label>交易所<select name="exchange_id"><option value="binance">Binance</option><option value="okx">OKX</option><option value="bybit">Bybit</option><option value="kraken">Kraken</option></select></label><label>交易对<input name="symbol" value="BTC/USDT" required /></label><label>训练周期<select name="timeframe"><option value="1h">1 小时</option></select></label></div><div class="row"><label>开始日期<input name="train_start" id="ml-train-start" type="date" required /></label><label>结束日期<input name="train_end" id="ml-train-end" type="date" required /></label></div><p class="form-note">建议使用至少 2 年数据。系统按时间顺序训练，不会随机打乱未来行情。</p></div>
+                <div class="form-section"><div class="section-title"><span>2</span><div><b>选择模型</b><small>今后可以在这里切换神经网络</small></div></div><div class="model-options"><label class="model-option selected"><input type="radio" name="model_type" value="lightgbm" checked /><span><b>LightGBM</b><small>第一版推荐 · 快速、稳定、适合行情因子</small></span><em>可用</em></label><div class="model-option future"><span class="model-radio"></span><span><b>神经网络</b><small>将复用同一套数据和验证流程</small></span><em>下一阶段</em></div></div><div class="feature-basket"><b>自动使用 24 个特征</b><p>多周期收益率、均线距离、动量、波动率、RSI、Z-score、量比、K 线形态和时间特征。</p></div></div>
+                <div class="form-section"><div class="section-title"><span>3</span><div><b>设置预测和成本</b><small>模型预测扣除成本后的未来收益</small></div></div><div class="row three"><label>预测未来<input name="horizon" type="number" value="12" min="1" max="72" /><em>根 K 线，12 = 未来 12 小时</em></label><label>手续费<input name="fee_bps" type="number" value="10" min="0" step="0.1" /><em>单边 bps</em></label><label>预计滑点<input name="slippage_bps" type="number" value="5" min="0" step="0.1" /><em>单边 bps</em></label></div><div class="row"><label>预测净收益达到多少买入<input name="entry_threshold_pct" type="number" value="0.25" min="0" step="0.05" /><em>%</em></label><label>预测净收益低于多少平仓<input name="exit_threshold_pct" type="number" value="0" step="0.05" /><em>%</em></label></div><div id="ml-training-sentence" class="strategy-sentence">模型预测未来 12 小时扣费后收益达到 0.25% 时买入，降到 0% 时平仓。</div></div>
+                <div class="ml-checks"><div><span>✓</span><p><b>时间滚动验证</b><small>三轮向前验证，避免随机切分偷看未来。</small></p></div><div><span>✓</span><p><b>成本后回测</b><small>手续费和滑点会进入训练目标与策略回测。</small></p></div><div><span>✓</span><p><b>版本化模型</b><small>模型文件和训练参数一起保存在本机。</small></p></div></div>
+                <button class="primary large-button" type="submit">开始训练并验证</button><p class="form-note ml-time-note">读取两年行情并完成三轮验证通常需要几十秒，训练期间请保持页面打开。</p>
+              </form>
+            </article>
+            <article class="panel ml-guide"><div class="panel-head"><div><p class="eyebrow">HOW IT WORKS</p><h3>模型怎样做决定</h3></div></div><div class="ml-flow"><div><span>01</span><p><b>读取历史 K 线</b><small>只使用当时已经发生的数据。</small></p></div><div><span>02</span><p><b>计算行情因子</b><small>把绝对价格转换为收益、趋势、波动和成交量特征。</small></p></div><div><span>03</span><p><b>滚动训练与测试</b><small>前面的数据训练，后面的数据验证，窗口不断向前移动。</small></p></div><div><span>04</span><p><b>生成净收益预测</b><small>预测值已经考虑设置的手续费和滑点。</small></p></div><div><span>05</span><p><b>进入策略库</b><small>保存后仍需回测和模拟，不会自动开始交易。</small></p></div></div><div class="future-card"><span>NEURAL NETWORK READY</span><b>下一阶段：神经网络训练器</b><p>数据集、特征版本、滚动验证、模型文件和策略调用接口已经按可替换结构设计。</p></div></article>
+          </div>
+          <article class="panel ml-results-panel"><div class="panel-head"><div><p class="eyebrow">EXPERIMENT HISTORY</p><h3>训练记录</h3></div><span id="ml-count" class="form-note">0 个模型</span></div><div id="ml-experiment-list" class="ml-experiment-grid"><div class="gentle-empty">还没有训练记录。</div></div></article>
+        </section>
+
         <section id="strategies" class="page">
           <div class="grid form-grid wide-left">
             <article class="panel strategy-builder"><div class="panel-head"><div><p class="eyebrow">可视化策略向导</p><h3>四步创建一个策略</h3></div><span class="soft-pill">不用写代码</span></div>
@@ -121,7 +142,7 @@
 
         <section id="library" class="page">
           <div class="library-hero"><div><span class="soft-pill">CLASSIC + YOUR OWN</span><h3>从经典策略开始，也收藏自己的想法</h3><p>先读懂每个模板的买卖条件，再一键放入策略向导。你写好的规则也会永久保存在“我的策略”分类。</p></div><div class="library-books"><i></i><i></i><i></i></div></div>
-          <div class="library-toolbar"><div><button class="filter-chip active" data-library-filter="全部">全部</button><button class="filter-chip" data-library-filter="趋势">趋势</button><button class="filter-chip" data-library-filter="震荡">震荡</button><button class="filter-chip" data-library-filter="突破">突破</button><button class="filter-chip" data-library-filter="组合">组合</button><button class="filter-chip" data-library-filter="Alpha因子">Alpha 因子</button><button class="filter-chip" data-library-filter="我的策略">我的策略</button></div><span id="library-count">0 个模板</span></div>
+          <div class="library-toolbar"><div><button class="filter-chip active" data-library-filter="全部">全部</button><button class="filter-chip" data-library-filter="趋势">趋势</button><button class="filter-chip" data-library-filter="震荡">震荡</button><button class="filter-chip" data-library-filter="突破">突破</button><button class="filter-chip" data-library-filter="组合">组合</button><button class="filter-chip" data-library-filter="Alpha因子">Alpha 因子</button><button class="filter-chip" data-library-filter="机器学习">机器学习</button><button class="filter-chip" data-library-filter="我的策略">我的策略</button></div><span id="library-count">0 个模板</span></div>
           <div id="library-list" class="library-grid"><div class="gentle-empty">正在准备策略模板…</div></div>
         </section>
 

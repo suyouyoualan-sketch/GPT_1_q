@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -100,5 +100,34 @@ class StrategyTemplate(Base):
     rule: Mapped[dict[str, Any]] = mapped_column(JSON)
     preset: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     is_builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MLExperiment(Base):
+    __tablename__ = "ml_experiments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    exchange_id: Mapped[str] = mapped_column(String(30))
+    symbol: Mapped[str] = mapped_column(String(30))
+    timeframe: Mapped[str] = mapped_column(String(10), default="1h")
+    model_type: Mapped[str] = mapped_column(String(30), default="lightgbm")
+    train_start: Mapped[date] = mapped_column(Date)
+    train_end: Mapped[date] = mapped_column(Date)
+    horizon: Mapped[int] = mapped_column(Integer, default=12)
+    fee_bps: Mapped[float] = mapped_column(Float, default=10.0)
+    slippage_bps: Mapped[float] = mapped_column(Float, default=5.0)
+    entry_threshold_pct: Mapped[float] = mapped_column(Float, default=0.25)
+    exit_threshold_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(20), default="training")
+    candle_count: Mapped[int] = mapped_column(Integer, default=0)
+    sample_count: Mapped[int] = mapped_column(Integer, default=0)
+    oos_sample_count: Mapped[int] = mapped_column(Integer, default=0)
+    artifact: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    feature_version: Mapped[str] = mapped_column(String(30), default="ohlcv_v1")
+    feature_names: Mapped[list[str]] = mapped_column(JSON, default=list)
+    feature_importance: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

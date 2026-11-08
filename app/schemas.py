@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -136,5 +136,63 @@ class TemplateOut(BaseModel):
     rule: dict[str, Any]
     preset: dict[str, Any] | None
     is_builtin: bool
+    created_at: datetime
+
+
+class MLTrainRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    exchange_id: str = "binance"
+    symbol: str = Field(default="BTC/USDT", pattern=r"^[A-Z0-9]+/[A-Z0-9]+$")
+    timeframe: Literal["1h"] = "1h"
+    model_type: Literal["lightgbm"] = "lightgbm"
+    train_start: date
+    train_end: date
+    horizon: int = Field(default=12, ge=1, le=72)
+    fee_bps: float = Field(default=10.0, ge=0, le=1_000)
+    slippage_bps: float = Field(default=5.0, ge=0, le=1_000)
+    entry_threshold_pct: float = Field(default=0.25, ge=0, le=20)
+    exit_threshold_pct: float = Field(default=0.0, ge=-20, le=20)
+
+    @model_validator(mode="after")
+    def validate_training(self) -> "MLTrainRequest":
+        if self.exchange_id not in SUPPORTED_EXCHANGES:
+            raise ValueError(f"暂不支持交易所: {self.exchange_id}")
+        if self.train_start >= self.train_end:
+            raise ValueError("训练开始日期必须早于结束日期")
+        if self.train_end > date.today():
+            raise ValueError("训练结束日期不能晚于今天")
+        if (self.train_end - self.train_start).days < 120:
+            raise ValueError("训练区间至少需要 120 天")
+        if self.exit_threshold_pct >= self.entry_threshold_pct:
+            raise ValueError("卖出阈值必须低于买入阈值")
+        return self
+
+
+class MLExperimentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    exchange_id: str
+    symbol: str
+    timeframe: str
+    model_type: str
+    train_start: date
+    train_end: date
+    horizon: int
+    fee_bps: float
+    slippage_bps: float
+    entry_threshold_pct: float
+    exit_threshold_pct: float
+    status: str
+    candle_count: int
+    sample_count: int
+    oos_sample_count: int
+    artifact: str | None
+    feature_version: str
+    feature_names: list[str]
+    feature_importance: list[dict[str, Any]]
+    metrics: dict[str, Any]
+    error: str | None
     created_at: datetime
 

@@ -1,6 +1,8 @@
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+import secrets
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -13,10 +15,13 @@ from .config import settings
 from .db import get_db, init_db
 from .engine import engine
 from .exchange import ExchangeService, compact_ohlcv
-from .models import ExchangeAccount, OrderRecord, Strategy, StrategyTemplate
+from .ml import FEATURE_VERSION, train_lightgbm
+from .models import ExchangeAccount, MLExperiment, OrderRecord, Strategy, StrategyTemplate
 from .schemas import (
     AccountCreate,
     AccountOut,
+    MLExperimentOut,
+    MLTrainRequest,
     OrderOut,
     StrategyCreate,
     StrategyOut,
@@ -97,6 +102,8 @@ async def overview(db: Db) -> dict[str, Any]:
         )
         or 0,
         "orders": db.scalar(select(func.count()).select_from(OrderRecord)) or 0,
+        "ml_experiments": db.scalar(select(func.count()).select_from(MLExperiment))
+        or 0,
     }
 
 
@@ -131,6 +138,154 @@ async def market_snapshot(
         }
     except Exception as exc:
         raise HTTPException(400, f"行情加载失败: {exc}") from exc
+
+
+@app.get(
+    "/api/ml/experiments",
+    response_model=list[MLExperimentOut],
+    dependencies=[Depends(require_admin)],
+)
+async def list_ml_experiments(db: Db) -> list[MLExperiment]:
+    return list(db.scalars(select(MLExperiment).order_by(MLExperiment.id.desc())))
+
+
+@app.post(
+    "/api/ml/train",
+    response_model=MLExperimentOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
+async def train_ml_experiment(payload: MLTrainRequest, db: Db) -> MLExperiment:
+    experiment = MLExperiment(
+        **payload.model_dump(),
+        status="training",
+        feature_version=FEATURE_VERSION,
+    )
+    db.add(experiment)
+    db.commit()
+    db.refresh(experiment)
+    try:
+        start_ms = int(
+            datetime.combine(payload.train_start, time.min, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        )
+        end_ms = int(
+            datetime.combine(
+                payload.train_end + timedelta(days=1), time.min, tzinfo=timezone.utc
+            ).timestamp()
+            * 1_000
+        )
+        candles = await ExchangeService.fetch_ohlcv_range(
+            payload.exchange_id,
+            payload.symbol,
+            payload.timeframe,
+            start_ms,
+            end_ms,
+            max_candles=30_000,
+        )
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1_000)
+        candles = [row for row in candles if int(row[0]) + 3_600_000 <= now_ms]
+        if len(candles) < 700:
+            raise ValueError(
+                f"交易所只返回了 {len(candles)} 根 K 线，至少需要 700 根"
+            )
+        result = await asyncio.to_thread(
+            train_lightgbm,
+            candles,
+            experiment_id=experiment.id,
+            artifact_token=secrets.token_hex(6),
+            horizon=payload.horizon,
+            fee_bps=payload.fee_bps,
+            slippage_bps=payload.slippage_bps,
+            entry_threshold_pct=payload.entry_threshold_pct,
+            exit_threshold_pct=payload.exit_threshold_pct,
+        )
+        experiment.status = "ready"
+        experiment.candle_count = len(candles)
+        experiment.sample_count = result["sample_count"]
+        experiment.oos_sample_count = result["oos_sample_count"]
+        experiment.artifact = result["artifact"]
+        experiment.feature_names = result["feature_names"]
+        experiment.feature_importance = result["feature_importance"]
+        experiment.metrics = result["metrics"]
+        experiment.error = None
+        db.commit()
+        db.refresh(experiment)
+        return experiment
+    except Exception as exc:
+        experiment.status = "failed"
+        experiment.error = str(exc)[:1_000]
+        db.commit()
+        raise HTTPException(400, f"模型训练失败: {exc}") from exc
+
+
+@app.post(
+    "/api/ml/experiments/{experiment_id}/library",
+    response_model=TemplateOut,
+    dependencies=[Depends(require_admin)],
+)
+async def save_ml_to_library(experiment_id: int, db: Db) -> StrategyTemplate:
+    experiment = db.get(MLExperiment, experiment_id)
+    if not experiment:
+        raise HTTPException(404, "训练记录不存在")
+    if experiment.status != "ready" or not experiment.artifact:
+        raise HTTPException(409, "模型尚未训练完成")
+    slug = f"ml-{experiment.artifact.removesuffix('.txt')}"
+    existing = db.scalar(select(StrategyTemplate).where(StrategyTemplate.slug == slug))
+    if existing:
+        return existing
+    rule = {
+        "ml_model": {
+            "experiment_id": experiment.id,
+            "model_type": experiment.model_type,
+            "artifact": experiment.artifact,
+            "feature_version": experiment.feature_version,
+            "exchange_id": experiment.exchange_id,
+            "symbol": experiment.symbol,
+            "timeframe": experiment.timeframe,
+            "training_end": experiment.train_end.isoformat(),
+            "horizon": experiment.horizon,
+            "training_fee_bps": experiment.fee_bps,
+            "slippage_bps": experiment.slippage_bps,
+            "entry_threshold_pct": experiment.entry_threshold_pct,
+            "exit_threshold_pct": experiment.exit_threshold_pct,
+        }
+    }
+    try:
+        _validate_rule(rule)
+    except StrategyError as exc:
+        raise HTTPException(422, f"模型策略无效: {exc}") from exc
+    item = StrategyTemplate(
+        slug=slug,
+        name=experiment.name,
+        description=(
+            f"{experiment.symbol} · {experiment.timeframe} · LightGBM；"
+            f"预测未来 {experiment.horizon} 根 K 线的扣费后收益。"
+        ),
+        category="机器学习",
+        entry_summary=f"预测净收益 ≥ {experiment.entry_threshold_pct}% 时买入",
+        exit_summary=f"预测净收益 ≤ {experiment.exit_threshold_pct}% 时平仓",
+        rule=rule,
+        preset=None,
+        is_builtin=False,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete(
+    "/api/ml/experiments/{experiment_id}",
+    status_code=204,
+    dependencies=[Depends(require_admin)],
+)
+async def delete_ml_experiment(experiment_id: int, db: Db) -> None:
+    experiment = db.get(MLExperiment, experiment_id)
+    if not experiment:
+        raise HTTPException(404, "训练记录不存在")
+    db.delete(experiment)
+    db.commit()
 
 
 @app.get("/api/accounts", response_model=list[AccountOut], dependencies=[Depends(require_admin)])
@@ -201,6 +356,15 @@ async def create_strategy(payload: StrategyCreate, db: Db) -> Strategy:
         _validate_rule(payload.rule)
     except StrategyError as exc:
         raise HTTPException(422, f"策略规则无效: {exc}") from exc
+    ml_config = payload.rule.get("ml_model")
+    if ml_config and any(
+        (
+            ml_config.get("exchange_id") != payload.exchange_id,
+            ml_config.get("symbol") != payload.symbol,
+            ml_config.get("timeframe") != payload.timeframe,
+        )
+    ):
+        raise HTTPException(422, "机器学习策略必须使用训练时的交易所、交易对和周期")
     if payload.exchange_account_id:
         account = db.get(ExchangeAccount, payload.exchange_account_id)
         if not account:
@@ -286,6 +450,17 @@ async def run_backtest(
             candles = await ExchangeService.fetch_ohlcv(
                 strategy.exchange_id, strategy.symbol, strategy.timeframe, limit=limit
             )
+        ml_config = strategy.rule.get("ml_model")
+        if ml_config and candles:
+            training_end = date.fromisoformat(str(ml_config["training_end"]))
+            backtest_start = datetime.fromtimestamp(
+                candles[0][0] / 1_000, tz=timezone.utc
+            ).date()
+            if backtest_start <= training_end:
+                raise ValueError(
+                    "机器学习模型只能回测训练结束日期之后的行情；"
+                    "训练区间的可靠表现请查看机器学习实验室中的样本外滚动验证"
+                )
         result = backtest(
             candles,
             strategy.rule,

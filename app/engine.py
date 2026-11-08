@@ -85,7 +85,8 @@ class TradingEngine:
             limit=300,
             account=account if strategy.mode != "paper" else None,
         )
-        signal = strategy_signal(candles, snapshot["rule"])
+        signal_index = len(candles) - 2 if "ml_model" in snapshot["rule"] else -1
+        signal = strategy_signal(candles, snapshot["rule"], index=signal_index)
         price = float(candles[-1][4])
 
         with SessionLocal() as db:
@@ -123,16 +124,21 @@ class TradingEngine:
         db: Session, strategy: Strategy, side: str, price: float, reason: str
     ) -> None:
         fee_rate = strategy.fee_bps / 10_000
+        slippage_rate = (
+            float(strategy.rule.get("ml_model", {}).get("slippage_bps", 0)) / 10_000
+        )
         if side == "buy" and strategy.position_amount == 0:
             TradingEngine._refresh_dynamic_allocation(db, strategy)
             budget = min(strategy.order_quote, strategy.paper_cash)
             if budget <= 0:
                 raise RuntimeError("模拟账户可用资金不足")
+            price *= 1 + slippage_rate
             amount = budget * (1 - fee_rate) / price
             strategy.paper_cash -= budget
             strategy.position_amount = amount
             strategy.entry_price = price
         elif side == "sell" and strategy.position_amount > 0:
+            price *= 1 - slippage_rate
             amount = strategy.position_amount
             strategy.paper_cash += amount * price * (1 - fee_rate)
             strategy.position_amount = 0.0

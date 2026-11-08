@@ -180,6 +180,13 @@ def strategy_signal(
     if len(candles) < 3:
         raise StrategyError("K 线数量不足")
     index = index if index >= 0 else len(candles) - 1
+    if "ml_model" in config:
+        try:
+            from .ml import MLTrainingError, model_signal
+
+            return model_signal(candles, config["ml_model"], index)
+        except MLTrainingError as exc:
+            raise StrategyError(str(exc)) from exc
     if "entry" not in config or "exit" not in config:
         raise StrategyError("策略需要 entry 和 exit 规则")
     if evaluate_rule(candles, config["entry"], index, cache):
@@ -215,17 +222,39 @@ def backtest(
     position = 0.0
     entry_price: float | None = None
     fee_rate = fee_bps / 10_000
+    slippage_rate = (
+        float(config.get("ml_model", {}).get("slippage_bps", 0)) / 10_000
+    )
     trades: list[BacktestTrade] = []
     equity_curve: list[dict[str, float | int]] = []
     peak = initial_cash
     max_drawdown = 0.0
     first_price = float(candles[0][4])
     series_cache: dict[str, list[float | None]] = {}
+    ml_predictions: list[float | None] | None = None
+    if "ml_model" in config:
+        try:
+            from .ml import MLTrainingError, prediction_series
+
+            ml_predictions = prediction_series(candles, config["ml_model"])
+        except MLTrainingError as exc:
+            raise StrategyError(str(exc)) from exc
 
     for i in range(1, len(candles)):
         timestamp, price = int(candles[i][0]), float(candles[i][4])
-        reason = "rule"
-        signal = strategy_signal(candles, config, i, series_cache)
+        reason = "ml_prediction" if ml_predictions is not None else "rule"
+        if ml_predictions is not None:
+            prediction = ml_predictions[i]
+            if prediction is None:
+                signal = "hold"
+            elif prediction >= float(config["ml_model"].get("entry_threshold_pct", 0.25)):
+                signal = "buy"
+            elif prediction <= float(config["ml_model"].get("exit_threshold_pct", 0.0)):
+                signal = "sell"
+            else:
+                signal = "hold"
+        else:
+            signal = strategy_signal(candles, config, i, series_cache)
         if position > 0 and entry_price:
             if stop_loss_pct and price <= entry_price * (1 - stop_loss_pct / 100):
                 signal, reason = "sell", "stop_loss"
@@ -235,29 +264,32 @@ def backtest(
         if signal == "buy" and position == 0:
             budget = min(order_quote, cash)
             if budget > 0:
+                execution_price = price * (1 + slippage_rate)
                 fee = budget * fee_rate
-                amount = (budget - fee) / price
+                amount = (budget - fee) / execution_price
                 cash -= budget
                 position = amount
-                entry_price = price
+                entry_price = execution_price
                 trades.append(
                     BacktestTrade(
                         timestamp,
                         "buy",
-                        price,
+                        execution_price,
                         amount,
                         reason,
                         "open",
-                        "买入开仓",
+                        "模型买入开仓" if reason == "ml_prediction" else "买入开仓",
                     )
                 )
         elif signal == "sell" and position > 0:
             amount = position
-            cash += amount * price * (1 - fee_rate)
+            execution_price = price * (1 - slippage_rate)
+            cash += amount * execution_price * (1 - fee_rate)
             position = 0.0
             entry_price = None
             decisions = {
                 "rule": "策略卖出平仓",
+                "ml_prediction": "模型卖出平仓",
                 "stop_loss": "止损平仓",
                 "take_profit": "止盈平仓",
             }
@@ -265,7 +297,7 @@ def backtest(
                 BacktestTrade(
                     timestamp,
                     "sell",
-                    price,
+                    execution_price,
                     amount,
                     reason,
                     "close",
